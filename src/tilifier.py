@@ -21,6 +21,61 @@ PATTERNS = [
 ]
 
 
+class Tilifier(object):
+    def __init__(self,
+            width=None, height=None, columns=1, rows=1,
+            thickness=0.2, natural=0,
+            shadow_thickness=0.1, shadow_intensity='1', shadow_color='000000',
+            pattern='orthogonal', debug=False):
+        self.reader = ImageReader()
+        if debug:
+            self.writer = DebugWriter()
+        else:
+            self.writer = PngWriter()
+
+        if pattern == PATTERN_ORTHOGONAL:
+            surveyor = OrthogonalSurveyor()
+            self.texture_parser = OrthogonalTextureParser()
+            self.tile_maker = OrthogonalTileMaker()
+            self.tileset_stitcher = OrthogonalTilesetStitcher()
+        elif args.pattern == PATTERN_HEX_VERTICAL:
+            # default dimensions for convenience
+            if not width:
+                width = 97
+            if not height:
+                height = 112
+        elif args.pattern == PATTERN_HEX_HORIZONTAL:
+            # default dimensions for convenience
+            if not width:
+                width = 112
+            if not height:
+                height = 97
+
+        self.dimensions = surveyor.survey(
+            width=width,
+            height=height,
+            columns=columns,
+            rows=rows)
+        self.wall_options = surveyor.configure_walls(
+            thickness=thickness,
+            natural=natural)
+        self.shadow_options = surveyor.configure_undershadows(
+            thickness=shadow_thickness,
+            intensity=shadow_intensity,
+            color=shadow_color)
+        self.tile_maker.cut_walls(self.dimensions, self.wall_options)
+        self.tile_maker.undershade(self.dimensions, self.wall_options, self.shadow_options)
+
+    def tilify(self, file, output):
+        texture = self.reader.read(file)
+        full_tiles = self.texture_parser.parse(texture, self.dimensions)
+        tiles = (
+            self.tile_maker.expand(tile, self.dimensions, self.wall_options, self.shadow_options)
+            for tile in full_tiles)
+        tileset = self.tileset_stitcher.stitch(tiles, self.dimensions)
+        self.writer.write(args.output, tileset, self.dimensions)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
